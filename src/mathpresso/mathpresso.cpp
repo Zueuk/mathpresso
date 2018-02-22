@@ -151,14 +151,16 @@ static const ContextImpl mpContextNull = { 0 };
 //! Internal context data.
 struct ContextInternalImpl : public ContextImpl {
   MATHPRESSO_INLINE ContextInternalImpl()
-    : _allocator(),
-      _builder(&_allocator),
+    : _zone(32768 - Zone::kZoneOverhead),
+      _heap(&_zone),
+      _builder(&_heap),
       _scope(&_builder, static_cast<AstScope*>(NULL), kAstScopeGlobal) {
     mpAtomicSet(&_refCount, 1);
   }
   MATHPRESSO_INLINE ~ContextInternalImpl() {}
 
-  Allocator _allocator;
+  Zone _zone;
+  ZoneHeap _heap;
   AstBuilder _builder;
   AstScope _scope;
 };
@@ -170,7 +172,7 @@ static MATHPRESSO_INLINE ContextImpl* mpContextAddRef(ContextImpl* d) {
 }
 
 static MATHPRESSO_INLINE void mpContextRelease(ContextImpl* d) {
-  if (d != &mpContextNull && mpAtomicDec(&d->_refCount))
+  if (d != &mpContextNull && !mpAtomicDec(&d->_refCount))
     delete static_cast<ContextInternalImpl*>(d);
 }
 
@@ -349,7 +351,7 @@ Error Context::addBuiltIns(void) {
     if (sym != NULL) \
       return MATHPRESSO_TRACE_ERROR(kErrorSymbolAlreadyExists); \
     \
-    sym = d->_builder.newSymbol(StringRef(name, nlen), hVal, kAstSymbolVariable, kAstScopeGlobal); \
+    sym = d->_builder.newSymbol(StringRef(name, nlen), hVal, type, kAstScopeGlobal); \
     if (sym == NULL) \
       return MATHPRESSO_TRACE_ERROR(kErrorNoMemory); \
     d->_scope.putSymbol(sym); \
@@ -383,7 +385,7 @@ Error Context::addVariable(const char* name, int offset, unsigned int flags) {
   return kErrorOk;
 }
 
-Error Context::addFunction(const char* name, void* fn, uint32_t flags) {
+Error Context::addFunction(const char* name, void* fn, unsigned int flags) {
   ContextInternalImpl* d;
 
   MATHPRESSO_PROPAGATE(mpContextMutable(this, &d));
@@ -432,11 +434,12 @@ Error Expression::compile(const Context& ctx, const char* body, unsigned int opt
   else
     options &= ~(kOptionVerbose | kOptionDebugAst | kOptionDebugAsm);
 
-  Allocator allocator;
+  Zone zone(32768 - Zone::kZoneOverhead);
+  ZoneHeap heap(&zone);
   StringBuilderTmp<512> sbTmp;
 
   // Initialize AST.
-  AstBuilder ast(&allocator);
+  AstBuilder ast(&heap);
   MATHPRESSO_PROPAGATE(ast.initProgramScope());
 
   ContextImpl* d = ctx._d;
@@ -538,7 +541,7 @@ void ErrorReporter::onWarning(uint32_t position, const char* fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
 
-    sb.appendVFormat(fmt, ap);
+    sb.appendFormatVA(fmt, ap);
 
     va_end(ap);
     onWarning(position, sb);
@@ -560,7 +563,7 @@ Error ErrorReporter::onError(Error error, uint32_t position, const char* fmt, ..
     va_list ap;
     va_start(ap, fmt);
 
-    sb.appendVFormat(fmt, ap);
+    sb.appendFormatVA(fmt, ap);
 
     va_end(ap);
     return onError(error, position, sb);

@@ -4,7 +4,9 @@ MathPresso
 Mathematical Expression Parser And JIT Compiler.
 
   * [Official Repository (kobalicek/mathpresso)](https://github.com/kobalicek/mathpresso)
-  * [Zlib Licensed](http://www.opensource.org/licenses/zlib-license.php)
+  * [Official Blog (asmbits)] (https://asmbits.blogspot.com/ncr)
+  * [Official Chat (gitter)](https://gitter.im/kobalicek/mpsl)
+  * [Permissive ZLIB license](./LICENSE.md)
 
 Introduction
 ------------
@@ -81,8 +83,9 @@ MathPresso's expression is always created around a `mathpresso::Context`, which 
 
 ```c++
 #include <mathpresso/mathpresso.h>
+#include <stdio.h>
 
-int main(int argc, char* argv() {
+int main(int argc, char* argv[]) {
   mathpresso::Context ctx;
   mathpresso::Expression exp;
 
@@ -132,6 +135,7 @@ The example above should be self-explanatory. The next example does the same but
 
 ```c++
 #include <mathpresso/mathpresso.h>
+#include <stdio.h>
 
 struct Data {
   inline Data(double x, double y, double z)
@@ -140,7 +144,7 @@ struct Data {
   double x, y, z;
 };
 
-int main(int argc, char* argv() {
+int main(int argc, char* argv[]) {
   mathpresso::Context ctx;
   mathpresso::Expression exp;
 

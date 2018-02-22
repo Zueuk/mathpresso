@@ -4,26 +4,59 @@
 // [License]
 // Zlib - See LICENSE.md file in the package.
 
-#include "../mathpresso/mathpresso.h"
+#include "../src/mathpresso/mathpresso.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
+// Undef all macros that could collide with mathpresso language builtins (see tests).
 #if defined(min)
 # undef min
-#endif // min
+#endif
 
 #if defined(max)
 # undef max
-#endif // max
+#endif
+
+#if defined(isnan)
+# undef isnan
+#endif
+
+#if defined(isinf)
+# undef isinf
+#endif
+
+#if defined(isfinite)
+# undef isfinite
+#endif
 
 #if defined(__GNUC__) || defined(__clang__)
 inline void set_x87_mode(unsigned short mode) {
   __asm__ __volatile__ ("fldcw %0" :: "m" (*&mode));
 }
 #endif
+
+// ============================================================================
+// [DoubleBits]
+// ============================================================================
+
+// This is a copy-pase from `mpeval_p.h`, we can't include it here since it's
+// private.
+union DoubleBits {
+  static MATHPRESSO_INLINE DoubleBits fromDouble(double d) { DoubleBits u; u.d = d; return u; }
+
+  MATHPRESSO_INLINE void setNan() { hi = 0x7FF80000U; lo = 0x00000000U; }
+  MATHPRESSO_INLINE void setInf() { hi = 0x7FF00000U; lo = 0x00000000U; }
+
+  MATHPRESSO_INLINE bool isNan() const { return (hi & 0x7FF00000U) == 0x7FF00000U && ((hi & 0x000FFFFFU) | lo) != 0x00000000U; }
+  MATHPRESSO_INLINE bool isInf() const { return (hi & 0x7FFFFFFFU) == 0x7FF00000U && lo == 0x00000000U; }
+  MATHPRESSO_INLINE bool isFinite() const { return (hi & 0x7FF00000U) != 0x7FF00000U; }
+
+  double d;
+  struct { unsigned int lo, hi; };
+};
 
 // ============================================================================
 // [TestOption]
@@ -63,6 +96,13 @@ struct TestOutputLog : public mathpresso::OutputLog {
 };
 
 // ============================================================================
+// [TestFunc]
+// ============================================================================
+
+static double custom1(double x) { return x; }
+static double custom2(double x, double y) { return x + y; }
+
+// ============================================================================
 // [TestApp]
 // ============================================================================
 
@@ -78,6 +118,10 @@ struct TestApp {
   double x, y, z, big;
 
   // Functions.
+  inline double isinf(double x) { return DoubleBits::fromDouble(x).isInf() ? 1.0 : 0.0; }
+  inline double isnan(double x) { return DoubleBits::fromDouble(x).isNan() ? 1.0 : 0.0; }
+  inline double isfinite(double x) { return DoubleBits::fromDouble(x).isFinite() ? 1.0 : 0.0; }
+
   inline double avg(double x, double y) { return (x + y) * 0.5; }
   inline double min(double x, double y) { return x < y ? x : y; }
   inline double max(double x, double y) { return x > y ? x : y; }
@@ -136,6 +180,9 @@ struct TestApp {
     ctx.addVariable("y"  , 1 * sizeof(double));
     ctx.addVariable("z"  , 2 * sizeof(double));
     ctx.addVariable("big", 3 * sizeof(double));
+
+    ctx.addFunction("custom1", (void*)custom1, mathpresso::kFunctionArg1);
+    ctx.addFunction("custom2", (void*)custom2, mathpresso::kFunctionArg2);
 
 #define TEST_INLINE(exp) { #exp, (double)(exp), { x, y, z } }
 #define TEST_STRING(str, result) { str, result, { x, y, z } }
@@ -218,6 +265,18 @@ struct TestApp {
 
       TEST_INLINE(1.7976931348623157e+308),
       TEST_INLINE(2.2250738585072014e-308),
+
+      TEST_INLINE(isinf(x)),
+      TEST_INLINE(isnan(x)),
+      TEST_INLINE(isfinite(x)),
+
+      TEST_INLINE(isinf(0.0 / 0.0)),
+      TEST_INLINE(isnan(0.0 / 0.0)),
+      TEST_INLINE(isfinite(0.0 / 0.0)),
+
+      TEST_INLINE(isinf(1.0 / 0.0)),
+      TEST_INLINE(isnan(1.0 / 0.0)),
+      TEST_INLINE(isfinite(1.0 / 0.0)),
 
       TEST_INLINE(x + y),
       TEST_INLINE(x - y),
@@ -355,6 +414,9 @@ struct TestApp {
       TEST_INLINE(max(x, y)),
       TEST_INLINE(max(x, -y)),
       TEST_INLINE(pow(x, y)),
+
+      TEST_INLINE(custom1(x)),
+      TEST_INLINE(custom2(x, y)),
 
       TEST_STRING("var a=1; a", 1.0),
       TEST_STRING("var a=199   * 2; a", 398),
