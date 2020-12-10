@@ -71,7 +71,7 @@ Features
     * Arcsine `asin(x)`
     * Arccosine `acos(x)`
     * Arctangent `atan(x)`
-    * Arctangent `atan2(x, y)`
+    * Arctangent `atan2(y, x)`
   * Constants defined by `addBuiltIns()`:
     * Infinity `INF`
     * Not a Number `NaN`
